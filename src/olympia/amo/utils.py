@@ -53,7 +53,6 @@ import basket
 
 from babel import Locale
 from django_statsd.clients import statsd
-from easy_thumbnails import processors
 from html5lib.serializer import HTMLSerializer
 from PIL import Image
 from rest_framework.utils.encoders import JSONEncoder
@@ -642,7 +641,21 @@ def resize_image(source, destination, size=None, *, format='png', quality=80):
             im.load()
     original_size = im.size
     if size:
-        im = processors.scale_and_crop(im.convert('RGBA'), size)
+        try:
+            target_width, target_height = [int(v) for v in size]
+            source_width, source_height = [float(v) for v in im.size]
+            scale = min(target_width / source_width, target_height / source_height)
+            if scale <= 1:
+                im = im.convert('RGBA')
+                im = im.resize(
+                    (
+                        int(round(source_width * scale)),
+                        int(round(source_height * scale)),
+                    ),
+                    resample=Image.LANCZOS,
+                )
+        except ValueError as value_error:
+            print(value_error)
 
     with storage.open(destination, 'wb') as dest_file:
         if format == 'png':
